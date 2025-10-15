@@ -20,10 +20,11 @@ export default function RootLayout({ children }) {
                 <div className="text-[11px] text-gray-500 dark:text-gray-400">Doncaster Knights Mini Juniors</div>
               </div>
             </div>
-            <nav className="flex items-center gap-4 text-sm">
-              <Link className="hover:underline" href="/">Home</Link>
-              <Link className="hover:underline" href="/match">Match Console</Link>
-            </nav>
+			<nav className="flex items-center gap-4 text-sm">
+			  <Link className="hover:underline" href="/">Home</Link>
+			  <Link className="hover:underline" href="/players">Players</Link>
+			  <Link className="hover:underline" href="/match">Match Console</Link>
+			</nav>			
           </div>
         </header>
         <main className="mx-auto max-w-screen-xl p-4">{children}</main>
@@ -35,3 +36,5 @@ export default function RootLayout({ children }) {
     </html>
   )
 }
+
+
