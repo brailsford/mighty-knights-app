@@ -94,43 +94,31 @@ export default function PlayersPage() {
   return (
     <div className="space-y-4">
       {/* Header row */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Players</h1>
-          <p className="text-sm text-gray-500">Name your squad. These names appear on the match console.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={teamId || ''}
-            onChange={e => setTeamId(e.target.value)}
-            className="field field-dark w-auto"
-          >
-            {teams.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name} — {t.squad.toUpperCase()}
-              </option>
-            ))}
-          </select>
+		<div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+		  <div className="min-w-0">
+			<h1 className="text-xl font-bold tracking-tight">Players</h1>
+			<p className="text-sm text-gray-500 truncate">Name your squad. These names appear on the match console.</p>
+		  </div>
+		  <div className="flex flex-wrap gap-2">
+			<select value={teamId || ''} onChange={e => setTeamId(e.target.value)} className="field field-dark w-[calc(50%-0.25rem)] sm:w-auto">
+			  {teams.map(t => <option key={t.id} value={t.id}>{t.name} — {t.squad.toUpperCase()}</option>)}
+			</select>
 
-          <label className="text-sm flex items-center gap-2">
-            Squad size
-            <select
-              value={count}
-              onChange={e => ensureCount(parseInt(e.target.value))}
-              className="field field-dark w-[92px]"
-            >
-              {[10,12,14,16,18,20].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
+			<label className="text-sm flex items-center gap-2 w-[calc(50%-0.25rem)] sm:w-auto">
+			  Squad size
+			  <select value={count} onChange={e => ensureCount(parseInt(e.target.value))} className="field field-dark w-full sm:w-[92px]">
+				{[10,12,14,16,18,20].map(n => <option key={n} value={n}>{n}</option>)}
+			  </select>
+			</label>
 
-          <button onClick={save} disabled={saving} className={`btn ${saving ? 'btn-ghost text-gray-400' : 'btn-primary'}`}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </div>
+			<button onClick={save} disabled={saving} className={`btn ${saving ? 'btn-ghost text-gray-400' : 'btn-primary'} w-full sm:w-auto`}>
+			  {saving ? 'Saving…' : 'Save'}
+			</button>
+		  </div>
+		</div>
 
       {/* Grid */}
-      <div className="card p-4">
+      <div className="card card-narrow">
         {loading ? (
           <div className="text-sm text-gray-500">Loading…</div>
         ) : (

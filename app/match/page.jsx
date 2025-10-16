@@ -247,7 +247,7 @@ export default function MatchConsole() {
         </div>
 
         {/* Settings */}
-        <div className="panel p-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="panel panel-narrow grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-4">
           <label className="block text-sm">Squad
             <select value={teamId||''} onChange={(e)=>setTeamId(e.target.value)} className="field field-dark mt-1" disabled={settingsDisabled}>
               {teams.map(t => <option key={t.id} value={t.id}>{t.name} — {t.squad.toUpperCase()}</option>)}
@@ -270,7 +270,7 @@ export default function MatchConsole() {
 
         {/* Starter picker */}
         {needsStarters && (
-          <div className="card p-4 bg-amber-50">
+          <div className="card card-narrow bg-amber-50">
             <div className="mb-2 text-sm font-semibold">Select your starting {maxOnField}</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
               {players.map(p => {
@@ -295,24 +295,27 @@ export default function MatchConsole() {
         )}
 
         {/* Clock & actions */}
-        <div className="card p-4 flex items-center justify-between">
-          <div>
-            <div className="text-sm text-gray-500">Match Clock</div>
-            <div className="text-6xl font-extrabold tabular-nums">{fmt(matchMs)}</div>
-            <div className="text-xs text-gray-500">On field: {onField.length}/{maxOnField}</div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={()=>setIsRunning(v=>!v)} disabled={controlDisabled}
-              className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${controlDisabled?'opacity-50':''}`}>
-              {isRunning?'Pause':'Start'}
-            </button>
-            <button onClick={resetMatch} className="btn btn-outline" disabled={isFinal}>Reset</button>
-            <button onClick={endGame} className="btn bg-dk-navy text-white" disabled={isFinal}>End game</button>
-          </div>
-        </div>
+		<div className="card card-narrow flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+		  <div>
+			<div className="text-sm text-gray-500">Match Clock</div>
+			<div className="text-6xl font-extrabold tabular-nums">{fmt(matchMs)}</div>
+			<div className="text-xs text-gray-500">On field: {onField.length}/{maxOnField}</div>
+		  </div>
+		  <div className="stack-sm w-full sm:w-auto">
+			<button
+			  onClick={()=>setIsRunning(v=>!v)}
+			  disabled={controlDisabled}
+			  className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${controlDisabled?'opacity-50':''} w-full sm:w-auto`}
+			>
+			  {isRunning?'Pause':'Start'}
+			</button>
+			<button onClick={resetMatch} className="btn btn-outline w-full sm:w-auto" disabled={isFinal}>Reset</button>
+			<button onClick={endGame} className="btn bg-dk-navy text-white w-full sm:w-auto" disabled={isFinal}>End game</button>
+		  </div>
+		</div>
 
         {/* On Field & Bench */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="card card-narrow lg:col-span-2">
           <div className="card p-4 lg:col-span-2">
             <h2 className="mb-2 text-lg font-semibold">On Field ({onField.length}/{maxOnField})</h2>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
@@ -349,7 +352,7 @@ export default function MatchConsole() {
             </ul>
           </div>
 
-          <div className="card p-4">
+          <div className="card card-narrow">
             <h2 className="mb-2 text-lg font-semibold">Bench</h2>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {bench.map(p => {
