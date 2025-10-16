@@ -2,4 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light dark; }
+/* Light/dark surfaces */
+:root {
+  --surface: #ffffff;
+  --surface-muted: #fafafa;
+  --text: #0B1220;
+  --muted: #6B7280;
+}
+
+.dark {
+  --surface: #0e0f12;
+  --surface-muted: #101418;
+  --text: #EEF2F6;
+  --muted: #9CA3AF;
+}
+
+html, body {
+  @apply font-ui bg-[var(--surface)] text-[var(--text)];
+}
+
+/* Subtle rugby pitch motif background for main area */
+main {
+  background:
+    linear-gradient(180deg, rgba(232,193,112,0.06) 0%, rgba(232,193,112,0) 35%) no-repeat,
+    linear-gradient(transparent 39px, rgba(10,26,47,0.06) 40px) 0 0/100% 40px;
+  /* The line above creates faint horizontal "touchlines" */
+}
+
+/* Header blur and elevation */
+.header-blur {
+  @apply bg-white/70 dark:bg-neutral-900/70 backdrop-blur border-b border-black/5 dark:border-white/10;
+}
+
+/* Cards & panels */
+@layer components {
+  .card {
+    @apply rounded-3xl border border-black/5 dark:border-white/10 bg-[var(--surface)] shadow-card;
+  }
+  .panel {
+    @apply rounded-3xl border border-black/5 dark:border-white/10 bg-[var(--surface)] shadow-soft;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-medium shadow-soft transition;
+  }
+  .btn-primary {
+    @apply btn bg-mk-red text-white hover:brightness-110 active:brightness-95;
+  }
+  .btn-emerald {
+    @apply btn bg-emerald-600 text-white hover:brightness-110 active:brightness-95;
+  }
+  .btn-indigo {
+    @apply btn bg-indigo-600 text-white hover:brightness-110 active:brightness-95;
+  }
+  .btn-ghost {
+    @apply btn bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-100 dark:hover:bg-neutral-700;
+  }
+  .btn-outline {
+    @apply btn border border-gray-300 text-gray-800 bg-white hover:bg-gray-50
+           dark:border-neutral-700 dark:text-gray-100 dark:bg-neutral-900 dark:hover:bg-neutral-800;
+  }
+
+  /* Inputs & selects: consistent light style across devices */
+  .field {
+    @apply w-full rounded-2xl border border-gray-300 bg-white text-gray-900 px-3 py-2
+           placeholder-gray-400 shadow-soft focus:outline-none focus:ring-2 focus:ring-mk-gold focus:border-mk-gold;
+  }
+  .field-dark {
+    @apply dark:border-neutral-700 dark:bg-neutral-800 dark:text-gray-100 dark:placeholder-neutral-400;
+  }
+  select.field {
+    @apply appearance-none bg-[url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")] bg-no-repeat bg-[right_0.9rem_center] pr-8;
+  }
+
+  /* Stat chips */
+  .chip {
+    @apply inline-block rounded-full px-2 py-0.5 text-[11px] tabular-nums;
+  }
+  .chip-ok { @apply chip bg-green-50 text-green-700; }
+  .chip-warn { @apply chip bg-orange-50 text-orange-700; }
+  .chip-bad { @apply chip bg-red-50 text-red-700; }
+  .chip-muted { @apply chip bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-neutral-300; }
+
+  /* Fairness bars (minutes vs target) */
+  .bar {
+    @apply h-2 w-full rounded-full bg-gray-200 dark:bg-neutral-800 relative overflow-hidden;
+  }
+  .bar-fill {
+    @apply absolute left-0 top-0 h-2 rounded-full bg-dk-navy dark:bg-mk-gold;
+  }
+  .bar-target {
+    @apply absolute top-[-2px] w-[2px] h-[10px] bg-mk-gold;
+    box-shadow: 0 0 0 2px rgba(232,193,112,0.25);
+  }
+}
