@@ -70,9 +70,12 @@ main {
   .field-dark {
     @apply dark:border-neutral-700 dark:bg-neutral-800 dark:text-gray-100 dark:placeholder-neutral-400;
   }
-  select.field {
-    @apply appearance-none bg-[url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")] bg-no-repeat bg-[right_0.9rem_center] pr-8;
-  }
+	select.field {
+	  @apply appearance-none bg-no-repeat pr-8;
+	  /* Tailwind can't @apply arbitrary bg URLs/positions; do it in raw CSS: */
+	  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+	  background-position: right 0.9rem center;
+	}
 
   /* Stat chips */
   .chip {
