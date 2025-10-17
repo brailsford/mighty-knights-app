@@ -728,7 +728,6 @@ export default function MatchConsole() {
             )}
           </div>
         </div>
-
         {/* Quick actions (no player) */}
         <div className="card p-4">
           <h3 className="mb-3 text-lg font-semibold">Quick Actions</h3>
