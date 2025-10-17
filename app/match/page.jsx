@@ -247,7 +247,7 @@ export default function MatchConsole() {
         </div>
 
         {/* Settings */}
-        <div className="panel panel-narrow grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-4">
+        <div className="panel panel-narrow grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-4 touch-top">
           <label className="block text-sm">Squad
             <select value={teamId||''} onChange={(e)=>setTeamId(e.target.value)} className="field field-dark mt-1" disabled={settingsDisabled}>
               {teams.map(t => <option key={t.id} value={t.id}>{t.name} — {t.squad.toUpperCase()}</option>)}
@@ -270,7 +270,7 @@ export default function MatchConsole() {
 
         {/* Starter picker */}
         {needsStarters && (
-          <div className="card card-narrow bg-amber-50">
+          <div className="card card-narrow bg-amber-50 z-0">
             <div className="mb-2 text-sm font-semibold">Select your starting {maxOnField}</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
               {players.map(p => {

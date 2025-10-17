@@ -23,11 +23,11 @@ export default function RootLayout({ children }) {
 			<nav className="flex items-center gap-4 text-sm overflow-x-auto no-scrollbar">
 			  <Link className="hover:underline shrink-0" href="/">Home</Link>
 			  <Link className="hover:underline shrink-0" href="/players">Players</Link>
-			  <Link className="hover:underline shrink-0" href="/match">Match Console</Link>
+			  <Link className="hover:underline shrink-0" href="/match">Match</Link>
 			</nav>
 		  </div>
 		</header>
-        <main className="mx-auto max-w-screen-xl p-4">{children}</main>
+        <main className="mx-auto max-w-screen-xl px-4 pt-5 pb-4">{children}</main>
         <footer className="mx-auto max-w-screen-xl px-4 py-4 text-xs text-gray-500 flex items-center gap-2">
           <Image src="/dk-white.png" alt="Doncaster Knights" width={20} height={20} />
           <span>Unofficial tool for DK Mini Juniors • v0.2</span>
