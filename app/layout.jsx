@@ -17,7 +17,7 @@ export default function RootLayout({ children }) {
 			  <Image src="/mk-logo.png" alt="Mighty Knights" width={36} height={36} className="rounded" priority />
 			  <div className="leading-tight min-w-0">
 				<div className="font-bold tracking-tight truncate">Mighty Knights</div>
-				<div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Doncaster Knights Mini Juniors</div>
+				<div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Doncaster Knights U9s</div>
 			  </div>
 			</div>
 			<nav className="flex items-center gap-4 text-sm overflow-x-auto no-scrollbar">

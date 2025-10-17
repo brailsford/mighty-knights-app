@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '../../lib/supabase-browser'
+import Link from 'next/link'
+
 
 const fmt = (ms) => {
   const s = Math.floor(ms / 1000); const mm = Math.floor(s / 60); const ss = s % 60
@@ -214,6 +216,35 @@ export default function MatchConsole() {
     setMatchStatus('final')
     router.push(`/summary/${matchId}`)
   }
+  
+  const newMatch = async () => {
+  // Create a fresh match row for the current squad and current settings
+  const { data, error } = await sb.from('match').insert({
+    team_id: teamId,
+    opponent,
+    half_length_minutes: halfLengthMin,
+    max_on_field: maxOnField,
+    status: 'draft',
+  }).select('id,status').single()
+
+  if (!error && data) {
+    localStorage.setItem('mk_match_id', data.id)
+    setMatchId(data.id)
+    setMatchStatus('draft')
+    setIntervals([])
+    setEvents([])
+    setStarterIds([])
+    setIsRunning(false)
+    setMatchMs(0)
+    setNeedsStarters(true)
+  }
+}
+const reopenMatch = async () => {
+  if (!confirm('Reopen this match for editing?')) return
+  await sb.from('match').update({ status: 'draft' }).eq('id', matchId)
+  setMatchStatus('draft')
+  // Starters block may not show if intervals already exist — that’s expected.
+}
 
   const controlDisabled = isFinal || needsStarters
   const settingsDisabled = isLocked
@@ -241,9 +272,10 @@ export default function MatchConsole() {
             </div>
             {matchId && <div className="text-[10px] text-gray-400">Match ID: {matchId.slice(0,8)}… • Status: {matchStatus}</div>}
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={()=>setDark(d=>!d)} className="btn btn-outline">{dark?'Light':'Dark'} mode</button>
-          </div>
+			<div className="flex items-center gap-2">
+			  <button onClick={()=>setDark(d=>!d)} className="btn btn-outline">{dark?'Light':'Dark'} mode</button>
+			  <Link href="/history" className="btn btn-ghost">History</Link>
+			</div>
         </div>
 
         {/* Settings */}
@@ -301,17 +333,24 @@ export default function MatchConsole() {
 			<div className="text-6xl font-extrabold tabular-nums">{fmt(matchMs)}</div>
 			<div className="text-xs text-gray-500">On field: {onField.length}/{maxOnField}</div>
 		  </div>
-		  <div className="stack-sm w-full sm:w-auto">
-			<button
-			  onClick={()=>setIsRunning(v=>!v)}
-			  disabled={controlDisabled}
-			  className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${controlDisabled?'opacity-50':''} w-full sm:w-auto`}
-			>
-			  {isRunning?'Pause':'Start'}
-			</button>
-			<button onClick={resetMatch} className="btn btn-outline w-full sm:w-auto" disabled={isFinal}>Reset</button>
-			<button onClick={endGame} className="btn bg-dk-navy text-white w-full sm:w-auto" disabled={isFinal}>End game</button>
-		  </div>
+			<div className="stack-sm w-full sm:w-auto">
+			  <button
+				onClick={()=>setIsRunning(v=>!v)}
+				disabled={controlDisabled}
+				className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${controlDisabled?'opacity-50':''} w-full sm:w-auto`}
+			  >
+				{isRunning?'Pause':'Start'}
+			  </button>
+
+			  <button onClick={resetMatch} className="btn btn-outline w-full sm:w-auto">Reset</button>
+			  <button onClick={newMatch} className="btn btn-ghost w-full sm:w-auto">New match</button>
+			  <button onClick={endGame} className="btn bg-dk-navy text-white w-full sm:w-auto" disabled={isFinal}>End game</button>
+				{isFinal && (
+				  <button onClick={reopenMatch} className="btn btn-ghost w-full sm:w-auto">
+					Reopen
+				  </button>
+				)}			
+			</div>
 		</div>
 
         {/* On Field & Bench */}
