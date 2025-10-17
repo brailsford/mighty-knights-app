@@ -41,6 +41,7 @@ export default function MatchConsole() {
   const [otherSquad, setOtherSquad] = useState([])
   const [guests, setGuests] = useState([]) // array of player_ids added as guests
   const [guestToAdd, setGuestToAdd] = useState('')
+  const [guestMsg, setGuestMsg] = useState('')
 
   // namespaced localStorage key per squad
   const keyFor = (tid) => `mk_match_id:${tid ?? 'none'}`
@@ -398,37 +399,50 @@ export default function MatchConsole() {
 
         {/* Add guest from other squad */}
         <div className="card card-narrow">
-          <label className="block text-sm font-medium mb-1">Borrow a player (guest)</label>
-          <div className="stack-sm">
-            <select
-              className="field field-dark w-full sm:w-72"
-              value={guestToAdd}
-              onChange={(e)=>setGuestToAdd(e.target.value)}
-            >
-              <option value="">Select from other squad…</option>
-              {otherSquad
-                .filter(p => !playersAll.some(x => x.id === p.id)) // don’t show if already added
-                .map(p => (
-                  <option key={p.id} value={p.id}>{p.name}{p.shirt ? ` #${p.shirt}` : ''}</option>
-                ))}
-            </select>
-            <button
-              className="btn btn-outline w-full sm:w-auto"
-              onClick={async () => {
-                if (!guestToAdd) return
-                const { error } = await sb.from('match_player').insert({ match_id: matchId, player_id: guestToAdd, is_guest: true })
-                if (!error) {
-                  setGuests(g => [...g, guestToAdd])
-                  setGuestToAdd('')
-                }
-              }}
-            >
-              Add guest
-            </button>
-          </div>
-          <p className="mt-1 text-[11px] text-gray-500">
-            Guests appear only in this game. Their home squad doesn’t change.
-          </p>
+			<label className="block text-sm font-medium mb-1">Borrow a player (guest)</label>
+			<div className="stack-sm">
+			  <select
+				className="field field-dark w-full sm:w-72"
+				value={guestToAdd}
+				onChange={(e)=>setGuestToAdd(e.target.value)}
+			  >
+				<option value="">Select from other squad…</option>
+				{otherSquad
+				  .filter(p => !playersAll.some(x => x.id === p.id)) // hide already-added
+				  .map(p => (
+					<option key={p.id} value={p.id}>{p.name}{p.shirt ? ` #${p.shirt}` : ''}</option>
+				  ))}
+			  </select>
+
+			  <button
+				className="btn btn-outline w-full sm:w-auto"
+				onClick={async () => {
+				  if (!guestToAdd) { setGuestMsg('Choose a player first.'); return }
+				  if (!matchId) { setGuestMsg('No match yet — tap New match.'); return }
+
+				  // upsert so clicking twice doesn’t error
+				  const { error } = await sb
+					.from('match_player')
+					.upsert({ match_id: matchId, player_id: guestToAdd, is_guest: true }, { onConflict: 'match_id,player_id' })
+
+				  if (error) {
+					console.error(error)
+					setGuestMsg(`Couldn’t add guest: ${error.message}`)
+					return
+				  }
+				  setGuests(g => g.includes(guestToAdd) ? g : [...g, guestToAdd])
+				  setGuestToAdd('')
+				  setGuestMsg('Guest added ✓ (see Bench)')
+				  setTimeout(()=>setGuestMsg(''), 2000)
+				}}
+			  >
+				Add guest
+			  </button>
+			</div>
+			{guestMsg && <p className="mt-1 text-[11px] text-gray-600">{guestMsg}</p>}
+			<p className="mt-1 text-[11px] text-gray-500">
+			  Guests appear only in this game. Their home squad doesn’t change.
+			</p>
         </div>
 
         {/* On Field & Bench */}
@@ -488,23 +502,42 @@ export default function MatchConsole() {
                         <div className="text-xs text-gray-500">⏱ {fmt(played)}</div>
                         {barFor(p.id)}
                       </div>
-                      <div className="flex flex-col gap-1 items-end">
-                        <button onClick={()=>setSelectedBenchIds(ids=>ids.includes(p.id)?ids.filter(x=>x!==p.id):[...ids,p.id])}
-                          className="btn btn-ghost">{selected?'Selected':'Mark ON'}</button>
-                        {p.guest && (
-                          <button
-                            className="btn btn-ghost"
-                            disabled={onNow}
-                            title={onNow ? 'Sub off before removing guest' : 'Remove guest'}
-                            onClick={async () => {
-                              await sb.from('match_player').delete().eq('match_id', matchId).eq('player_id', p.id)
-                              setGuests(gs => gs.filter(id => id !== p.id))
-                            }}
-                          >
-                            Remove guest
-                          </button>
-                        )}
-                      </div>
+						<div className="flex flex-col gap-1 items-end">
+						  {onField.length < maxOnField ? (
+							// If there’s a free slot, put them on immediately
+							<button
+							  className="btn btn-emerald"
+							  onClick={async () => {
+								setIntervals(u => [...u, { playerId: p.id, startMs: matchMs }])
+								await sb.from('playing_interval').insert({ match_id: matchId, player_id: p.id, start_ms: Math.floor(matchMs) })
+							  }}
+							>
+							  Send on now
+							</button>
+						  ) : (
+							// Otherwise use batch selection
+							<button
+							  onClick={()=>setSelectedBenchIds(ids=>ids.includes(p.id)?ids.filter(x=>x!==p.id):[...ids,p.id])}
+							  className="btn btn-ghost"
+							>
+							  {selected ? 'Selected' : 'Mark ON'}
+							</button>
+						  )}
+
+						  {p.guest && (
+							<button
+							  className="btn btn-ghost"
+							  disabled={isOnField(p.id)}
+							  title={isOnField(p.id) ? 'Sub off before removing guest' : 'Remove guest'}
+							  onClick={async () => {
+								await sb.from('match_player').delete().eq('match_id', matchId).eq('player_id', p.id)
+								setGuests(gs => gs.filter(id => id !== p.id))
+							  }}
+							>
+							  Remove guest
+							</button>
+						  )}
+						</div>
                     </div>
                   </li>
                 )
