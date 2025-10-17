@@ -89,6 +89,7 @@ export default function PlayersPage() {
         if (error) console.error(error)
       }
     }
+	await sb.from('team').update({ preferred_roster_size: count }).eq('id', teamId)
     setSaving(false); setMsg('Saved ✔')
     setTimeout(() => setMsg(''), 2000)
   }
