@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '../../lib/supabase-browser'
 import Link from 'next/link'
 
-const fmt = (ms: number) => {
+const fmt = (ms) => {
   const s = Math.floor(ms / 1000)
   const mm = Math.floor(s / 60)
   const ss = s % 60
@@ -12,14 +12,11 @@ const fmt = (ms: number) => {
 }
 
 // Stable sorter used everywhere to avoid list reshuffles/flicker
-const byRosterOrder = (
-  a: {shirt:number|null, name:string, id:string|number},
-  b: {shirt:number|null, name:string, id:string|number}
-) => {
+const byRosterOrder = (a, b) => {
   const as = a.shirt ?? Number.POSITIVE_INFINITY
   const bs = b.shirt ?? Number.POSITIVE_INFINITY
   if (as !== bs) return as - bs
-  const an = (a.name||'').localeCompare(b.name||'')
+  const an = (a.name || '').localeCompare(b.name || '')
   if (an !== 0) return an
   return String(a.id).localeCompare(String(b.id))
 }
@@ -28,8 +25,8 @@ export default function MatchConsole() {
   const sb = supabaseBrowser()
   const router = useRouter()
 
-  const [teams, setTeams] = useState<any[]>([])
-  const [teamId, setTeamId] = useState<string|null>(null)
+  const [teams, setTeams] = useState([])
+  const [teamId, setTeamId] = useState(null)
   const [opponent, setOpponent] = useState('Opposition U9')
   const [halfLengthMin, setHalfLengthMin] = useState(10)
   const [maxOnField, setMaxOnField] = useState(8)
@@ -37,36 +34,36 @@ export default function MatchConsole() {
   const [dark, setDark] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [matchMs, setMatchMs] = useState(0)
-  const lastTickRef = useRef<number|null>(null)
+  const lastTickRef = useRef(null)
 
-  const [matchId, setMatchId] = useState<string|null>(null)
-  const [matchStatus, setMatchStatus] = useState<'draft'|'live'|'final'>('draft')
-  const [players, setPlayers] = useState<any[]>([])         // home squad
-  const [intervals, setIntervals] = useState<{playerId:any,startMs:number,endMs:number|null}[]>([])
-  const [events, setEvents] = useState<any[]>([])
+  const [matchId, setMatchId] = useState(null)
+  const [matchStatus, setMatchStatus] = useState('draft') // 'draft' | 'live' | 'final'
+  const [players, setPlayers] = useState([])         // home squad
+  const [intervals, setIntervals] = useState([])     // {playerId, startMs, endMs}
+  const [events, setEvents] = useState([])
 
   const [needsStarters, setNeedsStarters] = useState(false)
-  const [starterIds, setStarterIds] = useState<any[]>([])
+  const [starterIds, setStarterIds] = useState([])
 
-  // NEW: attendance (availability) for this match
-  const [availableIds, setAvailableIds] = useState<Set<any>>(new Set())
+  // availability for this match (local, also persisted in AVAIL event on confirm)
+  const [availableIds, setAvailableIds] = useState(new Set())
 
-  const [selectedBenchIds, setSelectedBenchIds] = useState<any[]>([])
-  const [selectedOnIds, setSelectedOnIds] = useState<any[]>([])
+  const [selectedBenchIds, setSelectedBenchIds] = useState([])
+  const [selectedOnIds, setSelectedOnIds] = useState([])
   const [noteDraft, setNoteDraft] = useState('')
 
   // Guests / other squad
-  const [otherSquad, setOtherSquad] = useState<any[]>([])
-  const [guests, setGuests] = useState<any[]>([]) // array of player_ids added as guests
-  const [guestToAdd, setGuestToAdd] = useState<any>('')
+  const [otherSquad, setOtherSquad] = useState([])
+  const [guests, setGuests] = useState([]) // array of player_ids added as guests
+  const [guestToAdd, setGuestToAdd] = useState('')
   const [guestMsg, setGuestMsg] = useState('')
 
   // throttle window to avoid server-push → local flicker after we just wrote
-  const lastLocalWriteAt = useRef<number>(0)
+  const lastLocalWriteAt = useRef(0)
 
   // namespaced keys
-  const keyForMatch = (tid: any) => `mk_match_id:${tid ?? 'none'}`
-  const keyForAvail = (mid: any) => `mk_available:${mid ?? 'none'}`
+  const keyForMatch = (tid) => `mk_match_id:${tid ?? 'none'}`
+  const keyForAvail = (mid) => `mk_available:${mid ?? 'none'}`
 
   // timer loop — single source of truth
   useEffect(() => {
@@ -114,7 +111,9 @@ export default function MatchConsole() {
       if (!teamId) return
       let mid = localStorage.getItem(keyForMatch(teamId))
       if (mid) {
-        const { data: m } = await sb.from('match').select('id,team_id,status,half_length_minutes,max_on_field,opponent').eq('id', mid).maybeSingle()
+        const { data: m } = await sb.from('match')
+          .select('id,team_id,status,half_length_minutes,max_on_field,opponent')
+          .eq('id', mid).maybeSingle()
         if (m && m.team_id === teamId) {
           setMatchId(m.id); setMatchStatus(m.status)
           setHalfLengthMin(m.half_length_minutes || halfLengthMin)
@@ -136,7 +135,7 @@ export default function MatchConsole() {
   }, [teamId])
 
   // load other squad players
-  const loadOther = async (tid: any) => {
+  const loadOther = async (tid) => {
     const { data: allTeams } = await sb.from('team').select('id, squad, name').order('squad')
     const other = (allTeams||[]).find(t => t.id !== tid) // two squads assumption
     if (!other) { setOtherSquad([]); return }
@@ -180,7 +179,7 @@ export default function MatchConsole() {
     const raw = localStorage.getItem(keyForAvail(matchId))
     if (raw) {
       try {
-        const ids = new Set<any>(JSON.parse(raw))
+        const ids = new Set(JSON.parse(raw))
         setAvailableIds(ids)
       } catch { setAvailableIds(new Set(playersAll.map(p=>p.id))) }
     } else {
@@ -217,15 +216,15 @@ export default function MatchConsole() {
         setMaxOnField(m.max_on_field || maxOnField)
         setOpponent(m.opponent || opponent)
       }
-      setIntervals((pis||[]).map((r:any) => ({ playerId: r.player_id, startMs: r.start_ms, endMs: r.end_ms ?? null })))
-      setEvents((evs||[]).map((e:any) => ({ type: e.kind === 'SUB' ? 'SUB_BATCH' : e.kind, atMs: e.at_ms, playerId: e.player_id ?? undefined, note: e.note ?? undefined })))
+      setIntervals((pis||[]).map((r) => ({ playerId: r.player_id, startMs: r.start_ms, endMs: r.end_ms ?? null })))
+      setEvents((evs||[]).map((e) => ({ type: e.kind === 'SUB' ? 'SUB_BATCH' : e.kind, atMs: e.at_ms, playerId: e.player_id ?? undefined, note: e.note ?? undefined })))
       setNeedsStarters((pis||[]).length === 0 && matchStatus !== 'final')
       // try to restore availability from last AVAIL event if localStorage empty
       if (!localStorage.getItem(keyForAvail(matchId))) {
-        const lastAvail = [...(evs||[])].reverse().find((e:any)=>e.kind==='AVAIL' && e.note)
+        const lastAvail = [...(evs||[])].reverse().find((e)=>e.kind==='AVAIL' && e.note)
         if (lastAvail) {
           try {
-            const ids = new Set<any>(JSON.parse(lastAvail.note))
+            const ids = new Set(JSON.parse(lastAvail.note))
             setAvailableIds(ids)
             localStorage.setItem(keyForAvail(matchId), lastAvail.note)
           } catch { /* ignore */ }
@@ -243,12 +242,12 @@ export default function MatchConsole() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId])
 
-  const isLocked = matchStatus !== 'draft'
   const isFinal  = matchStatus === 'final'
+  const isLocked = matchStatus !== 'draft'
 
   // Sets for fast checks
   const onFieldIdSet = useMemo(() => {
-    const s = new Set<any>()
+    const s = new Set()
     for (const i of intervals) if (i.endMs == null) s.add(i.playerId)
     return s
   }, [intervals])
@@ -262,7 +261,7 @@ export default function MatchConsole() {
 
   // minutes aggregation
   const minutesByPlayer = useMemo(() => {
-    const map = new Map<any, number>()
+    const map = new Map()
     for (const i of intervals) {
       const end = i.endMs ?? matchMs
       const dur = Math.max(0, end - i.startMs)
@@ -272,11 +271,11 @@ export default function MatchConsole() {
   }, [intervals, matchMs])
 
   // starters
-  const toggleStarter = (pid: any) =>
+  const toggleStarter = (pid) =>
     setStarterIds(ids => ids.includes(pid) ? ids.filter(x=>x!==pid) : [...ids, pid])
 
-  // NEW: toggle availability
-  const toggleAvailable = (pid: any) => {
+  // toggle availability
+  const toggleAvailable = (pid) => {
     if (!matchId) return
     setAvailableIds(prev => {
       const next = new Set(prev)
@@ -287,6 +286,7 @@ export default function MatchConsole() {
   }
 
   const confirmStarters = async () => {
+    if (!matchId) return
     // enforce starters ⊆ available and exact count
     if (starterIds.length !== maxOnField) return
     if (!starterIds.every(id => availableIds.has(id))) return
@@ -297,11 +297,11 @@ export default function MatchConsole() {
     if (!error) {
       setIntervals(rows.map(r => ({ playerId: r.player_id, startMs: 0, endMs: null })))
       setNeedsStarters(false)
-      await sb.from('match').update({ status: 'live', started_at: new Date().toISOString() }).eq('id', matchId!)
+      await sb.from('match').update({ status: 'live', started_at: new Date().toISOString() }).eq('id', matchId)
       setMatchStatus('live')
       // persist availability as an event for audit/recovery
       await sb.from('event').insert({
-        match_id: matchId!,
+        match_id: matchId,
         kind: 'AVAIL',
         at_ms: 0,
         note: JSON.stringify(Array.from(availableIds))
@@ -318,7 +318,7 @@ export default function MatchConsole() {
 
   const fullGameMs = halfLengthMin * 2 * 60 * 1000
   const fullTarget = homeBalancingPool.length ? (fullGameMs * maxOnField) / homeBalancingPool.length : 0
-  const deficit = (pid: any) => fullTarget - (minutesByPlayer.get(pid) ?? 0)
+  const deficit = (pid) => fullTarget - (minutesByPlayer.get(pid) ?? 0)
 
   const suggestRotation = () => {
     const sOff = [...onField].sort((a,b) => (minutesByPlayer.get(b.id) ?? 0) - (minutesByPlayer.get(a.id) ?? 0))
@@ -329,6 +329,7 @@ export default function MatchConsole() {
   }
 
   const confirmBatch = async () => {
+    if (!matchId) return
     const n = Math.min(selectedBenchIds.length, selectedOnIds.length)
     const pairs = Array.from({length:n}, (_,i)=>({ onId: selectedBenchIds[i], offId: selectedOnIds[i] }))
     setIntervals(cur => {
@@ -343,37 +344,40 @@ export default function MatchConsole() {
     setSelectedBenchIds([]); setSelectedOnIds([])
     lastLocalWriteAt.current = performance.now()
     for (const { offId } of pairs) {
-      await sb.from('playing_interval').update({ end_ms: Math.floor(matchMs) }).eq('match_id', matchId!).eq('player_id', offId).is('end_ms', null)
+      await sb.from('playing_interval').update({ end_ms: Math.floor(matchMs) }).eq('match_id', matchId).eq('player_id', offId).is('end_ms', null)
     }
     for (const { onId } of pairs) {
-      await sb.from('playing_interval').insert({ match_id: matchId!, player_id: onId, start_ms: Math.floor(matchMs) })
+      await sb.from('playing_interval').insert({ match_id: matchId, player_id: onId, start_ms: Math.floor(matchMs) })
     }
-    await sb.from('event').insert({ match_id: matchId!, kind: 'SUB', at_ms: Math.floor(matchMs), note: JSON.stringify(pairs) })
+    await sb.from('event').insert({ match_id: matchId, kind: 'SUB', at_ms: Math.floor(matchMs), note: JSON.stringify(pairs) })
   }
 
-  const removeNoReplace = async (pid: any) => {
+  const removeNoReplace = async (pid) => {
+    if (!matchId) return
     setIntervals(cur => {
       const idx = cur.findIndex(it => it.playerId === pid && it.endMs == null)
       if (idx >= 0) { const u=[...cur]; u[idx]={...u[idx], endMs: matchMs}; return u }
       return cur
     })
     lastLocalWriteAt.current = performance.now()
-    await sb.from('playing_interval').update({ end_ms: Math.floor(matchMs) }).eq('match_id', matchId!).eq('player_id', pid).is('end_ms', null)
+    await sb.from('playing_interval').update({ end_ms: Math.floor(matchMs) }).eq('match_id', matchId).eq('player_id', pid).is('end_ms', null)
   }
 
   // quick events
-  const quickAction = async (kind: string, playerId?: any) => {
+  const quickAction = async (kind, playerId) => {
+    if (!matchId) return
     lastLocalWriteAt.current = performance.now()
-    await sb.from('event').insert({ match_id: matchId!, player_id: playerId ?? null, at_ms: Math.floor(matchMs), kind, note: noteDraft || null })
+    await sb.from('event').insert({ match_id: matchId, player_id: playerId ?? null, at_ms: Math.floor(matchMs), kind, note: noteDraft || null })
   }
 
   // reset / end / new / reopen
   const resetMatch = async () => {
+    if (!matchId) return
     if (!confirm('Reset this match setup? This will clear starters, intervals and events.')) return
     lastLocalWriteAt.current = performance.now()
-    await sb.from('playing_interval').delete().eq('match_id', matchId!)
-    await sb.from('event').delete().eq('match_id', matchId!)
-    await sb.from('match').update({ status: 'draft', started_at: null }).eq('id', matchId!)
+    await sb.from('playing_interval').delete().eq('match_id', matchId)
+    await sb.from('event').delete().eq('match_id', matchId)
+    await sb.from('match').update({ status: 'draft', started_at: null }).eq('id', matchId)
     setIntervals([]); setEvents([]); setMatchStatus('draft'); setNeedsStarters(true); setStarterIds([])
     setIsRunning(false); setMatchMs(0)
     // clear availability for this match
@@ -382,14 +386,16 @@ export default function MatchConsole() {
   }
 
   const endGame = async () => {
+    if (!matchId) return
     if (!confirm('End game and commit stats?')) return
     lastLocalWriteAt.current = performance.now()
-    await sb.from('match').update({ status: 'final', completed_at: new Date().toISOString() }).eq('id', matchId!)
+    await sb.from('match').update({ status: 'final', completed_at: new Date().toISOString() }).eq('id', matchId)
     setMatchStatus('final')
     router.push(`/summary/${matchId}`)
   }
 
   const newMatch = async () => {
+    if (!teamId) return
     lastLocalWriteAt.current = performance.now()
     const { data, error } = await sb.from('match').insert({
       team_id: teamId,
@@ -411,16 +417,17 @@ export default function MatchConsole() {
   }
 
   const reopenMatch = async () => {
+    if (!matchId) return
     if (!confirm('Reopen this match for editing?')) return
     lastLocalWriteAt.current = performance.now()
-    await sb.from('match').update({ status: 'draft' }).eq('id', matchId!)
+    await sb.from('match').update({ status: 'draft' }).eq('id', matchId)
     setMatchStatus('draft')
   }
 
   const controlDisabled = isFinal || needsStarters
   const settingsDisabled = isLocked
 
-  const barFor = (pid: any) => {
+  const barFor = (pid) => {
     const played = minutesByPlayer.get(pid) ?? 0
     const pct = fullTarget > 0 ? Math.min(100, (played / fullTarget) * 100) : 0
     return (
@@ -536,8 +543,8 @@ export default function MatchConsole() {
           <div className="stack-sm w-full sm:w-auto">
             <button
               onClick={()=>setIsRunning(v=>!v)}
-              disabled={isFinal || needsStarters}
-              className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${(isFinal || needsStarters)?'opacity-50':''} w-full sm:w-auto`}
+              disabled={controlDisabled}
+              className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${controlDisabled?'opacity-50':''} w-full sm:w-auto`}
             >
               {isRunning?'Pause':'Start'}
             </button>
@@ -665,9 +672,10 @@ export default function MatchConsole() {
                           <button
                             className="btn btn-emerald"
                             onClick={async () => {
+                              if (!matchId) return
                               setIntervals(u => [...u, { playerId: p.id, startMs: matchMs, endMs: null }])
                               lastLocalWriteAt.current = performance.now()
-                              await sb.from('playing_interval').insert({ match_id: matchId!, player_id: p.id, start_ms: Math.floor(matchMs) })
+                              await sb.from('playing_interval').insert({ match_id: matchId, player_id: p.id, start_ms: Math.floor(matchMs) })
                             }}
                           >
                             Send on now
@@ -687,8 +695,9 @@ export default function MatchConsole() {
                             disabled={onFieldIdSet.has(p.id)}
                             title={onFieldIdSet.has(p.id) ? 'Sub off before removing guest' : 'Remove guest'}
                             onClick={async () => {
+                              if (!matchId) return
                               lastLocalWriteAt.current = performance.now()
-                              await sb.from('match_player').delete().eq('match_id', matchId!).eq('player_id', p.id)
+                              await sb.from('match_player').delete().eq('match_id', matchId).eq('player_id', p.id)
                               setGuests(gs => gs.filter(id => id !== p.id))
                               // also drop from availability
                               setAvailableIds(prev => {
@@ -728,6 +737,7 @@ export default function MatchConsole() {
             )}
           </div>
         </div>
+
         {/* Quick actions (no player) */}
         <div className="card p-4">
           <h3 className="mb-3 text-lg font-semibold">Quick Actions</h3>
