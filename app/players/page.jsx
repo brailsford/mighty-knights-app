@@ -15,7 +15,7 @@ export default function PlayersPage() {
   const [msg, setMsg] = useState('')
 
   useEffect(() => { (async () => {
-    const { data: t } = await sb.from('team').select('id,name,squad').order('squad')
+    const { data: t } = await sb.from('team').select('id,name,squad,preferred_roster_size').order('squad')
     setTeams(t || [])
     setTeamId(t?.[0]?.id || null)
   })() }, [])
@@ -41,7 +41,9 @@ export default function PlayersPage() {
       }))
     }
     setRows(list)
-    setCount(Math.max(list.length, DEFAULT_COUNT))
+    const team = teams.find(t => t.id === tid)
+    const pref = team?.preferred_roster_size ?? DEFAULT_COUNT
+    setCount(Math.max(list.length, pref, DEFAULT_COUNT))
     setLoading(false)
   }
 
