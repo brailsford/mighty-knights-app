@@ -11,7 +11,7 @@ const fmt = (ms) => {
   return `${mm.toString().padStart(2,'0')}:${ss.toString().padStart(2,'0')}`
 }
 
-// Stable sorter used everywhere to avoid list reshuffles/flicker
+// Stable sorter to avoid flicker
 const byRosterOrder = (a, b) => {
   const as = a.shirt ?? Number.POSITIVE_INFINITY
   const bs = b.shirt ?? Number.POSITIVE_INFINITY
@@ -45,8 +45,9 @@ export default function MatchConsole() {
   const [needsStarters, setNeedsStarters] = useState(false)
   const [starterIds, setStarterIds] = useState([])
 
-  // availability for this match (local, also persisted in AVAIL event on confirm)
+  // availability for this match (local; persisted only by our actions)
   const [availableIds, setAvailableIds] = useState(new Set())
+  const availInitialised = useRef(false) // prevent autosync from fighting toggles
 
   const [selectedBenchIds, setSelectedBenchIds] = useState([])
   const [selectedOnIds, setSelectedOnIds] = useState([])
@@ -54,18 +55,18 @@ export default function MatchConsole() {
 
   // Guests / other squad
   const [otherSquad, setOtherSquad] = useState([])
-  const [guests, setGuests] = useState([]) // array of player_ids added as guests
+  const [guests, setGuests] = useState([]) // player_id[]
   const [guestToAdd, setGuestToAdd] = useState('')
   const [guestMsg, setGuestMsg] = useState('')
 
-  // throttle window to avoid server-push → local flicker after we just wrote
+  // avoid flicker after local writes when realtime refresh arrives
   const lastLocalWriteAt = useRef(0)
 
-  // namespaced keys
+  // keys
   const keyForMatch = (tid) => `mk_match_id:${tid ?? 'none'}`
   const keyForAvail = (mid) => `mk_available:${mid ?? 'none'}`
 
-  // timer loop — single source of truth
+  // timer loop
   useEffect(() => {
     if (!isRunning) { lastTickRef.current = null; return }
     let raf = 0
@@ -163,44 +164,42 @@ export default function MatchConsole() {
     loadGuests()
   }, [matchId, sb])
 
-  // merged list for this match (home + guests), sorted deterministically
+  // merged list for this match (home + guests), with STABLE fallback for guests
   const playersAll = useMemo(() => {
     const map = new Map(players.map(p => [p.id, { ...p, guest:false }]))
+    const otherMap = new Map(otherSquad.map(p => [p.id, p]))
     for (const gid of guests) {
-      const g = otherSquad.find(p => p.id === gid)
-      if (g) map.set(g.id, { ...g, guest:true })
+      const g = otherMap.get(gid) || { id: gid, name: 'Guest', shirt: null, guest: true }
+      map.set(g.id, { ...g, guest: true })
     }
     return Array.from(map.values()).sort(byRosterOrder)
   }, [players, otherSquad, guests])
 
-  // availability: load from localStorage or infer default (everyone present)
+  // one-time availability init (from last saved, or default everyone)
   useEffect(() => {
     if (!matchId) return
     const raw = localStorage.getItem(keyForAvail(matchId))
     if (raw) {
       try {
-        const ids = new Set(JSON.parse(raw))
-        setAvailableIds(ids)
-      } catch { setAvailableIds(new Set(playersAll.map(p=>p.id))) }
+        setAvailableIds(new Set(JSON.parse(raw)))
+      } catch {
+        setAvailableIds(new Set(playersAll.map(p=>p.id)))
+      }
     } else {
       setAvailableIds(new Set(playersAll.map(p=>p.id)))
     }
+    availInitialised.current = true
+  // only when matchId changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId])
 
-  // keep availability in sync if player list changes (e.g., guest added)
+  // write-through persistence: whenever availability changes (by user or explicit code paths), store it
   useEffect(() => {
-    if (!matchId) return
-    setAvailableIds(prev => {
-      const next = new Set(prev)
-      for (const p of playersAll) if (!next.has(p.id)) next.add(p.id) // auto-include new players (e.g., guests)
-      // prune ids that no longer exist
-      for (const id of Array.from(next)) if (!playersAll.find(p=>p.id===id)) next.delete(id)
-      localStorage.setItem(keyForAvail(matchId), JSON.stringify(Array.from(next)))
-      return next
-    })
-  }, [playersAll, matchId])
+    if (!matchId || !availInitialised.current) return
+    localStorage.setItem(keyForAvail(matchId), JSON.stringify(Array.from(availableIds)))
+  }, [availableIds, matchId])
 
-  // live refresh, lightly throttled after local writes to avoid flicker
+  // live refresh, lightly throttled after local writes
   useEffect(() => {
     if (!matchId) return
     const refresh = async () => {
@@ -219,7 +218,8 @@ export default function MatchConsole() {
       setIntervals((pis||[]).map((r) => ({ playerId: r.player_id, startMs: r.start_ms, endMs: r.end_ms ?? null })))
       setEvents((evs||[]).map((e) => ({ type: e.kind === 'SUB' ? 'SUB_BATCH' : e.kind, atMs: e.at_ms, playerId: e.player_id ?? undefined, note: e.note ?? undefined })))
       setNeedsStarters((pis||[]).length === 0 && matchStatus !== 'final')
-      // try to restore availability from last AVAIL event if localStorage empty
+
+      // If we have never initialised availability for this match, restore from last AVAIL event
       if (!localStorage.getItem(keyForAvail(matchId))) {
         const lastAvail = [...(evs||[])].reverse().find((e)=>e.kind==='AVAIL' && e.note)
         if (lastAvail) {
@@ -227,7 +227,8 @@ export default function MatchConsole() {
             const ids = new Set(JSON.parse(lastAvail.note))
             setAvailableIds(ids)
             localStorage.setItem(keyForAvail(matchId), lastAvail.note)
-          } catch { /* ignore */ }
+            availInitialised.current = true
+          } catch {/* ignore */}
         }
       }
     }
@@ -274,20 +275,18 @@ export default function MatchConsole() {
   const toggleStarter = (pid) =>
     setStarterIds(ids => ids.includes(pid) ? ids.filter(x=>x!==pid) : [...ids, pid])
 
-  // toggle availability
+  // availability toggle (and persist)
   const toggleAvailable = (pid) => {
     if (!matchId) return
     setAvailableIds(prev => {
       const next = new Set(prev)
       if (next.has(pid)) next.delete(pid); else next.add(pid)
-      localStorage.setItem(keyForAvail(matchId), JSON.stringify(Array.from(next)))
       return next
     })
   }
 
   const confirmStarters = async () => {
     if (!matchId) return
-    // enforce starters ⊆ available and exact count
     if (starterIds.length !== maxOnField) return
     if (!starterIds.every(id => availableIds.has(id))) return
 
@@ -299,7 +298,7 @@ export default function MatchConsole() {
       setNeedsStarters(false)
       await sb.from('match').update({ status: 'live', started_at: new Date().toISOString() }).eq('id', matchId)
       setMatchStatus('live')
-      // persist availability as an event for audit/recovery
+      // store availability snapshot as event
       await sb.from('event').insert({
         match_id: matchId,
         kind: 'AVAIL',
@@ -309,8 +308,7 @@ export default function MatchConsole() {
     }
   }
 
-  // --- BALANCING POOL ---
-  // Exclude guests and anyone unavailable from even-time target to prevent judder and wrong targets.
+  // Balancing pool excludes guests + absentees
   const homeBalancingPool = useMemo(
     () => availableList.filter(p => !p.guest),
     [availableList]
@@ -383,6 +381,7 @@ export default function MatchConsole() {
     // clear availability for this match
     localStorage.removeItem(keyForAvail(matchId))
     setAvailableIds(new Set(playersAll.map(p=>p.id)))
+    availInitialised.current = true
   }
 
   const endGame = async () => {
@@ -411,8 +410,10 @@ export default function MatchConsole() {
       setIntervals([]); setEvents([]); setStarterIds([])
       setIsRunning(false); setMatchMs(0); setNeedsStarters(true)
       // start with everyone available in the new match
-      localStorage.setItem(keyForAvail(data.id), JSON.stringify(playersAll.map(p=>p.id)))
-      setAvailableIds(new Set(playersAll.map(p=>p.id)))
+      const everyone = playersAll.map(p=>p.id)
+      localStorage.setItem(keyForAvail(data.id), JSON.stringify(everyone))
+      setAvailableIds(new Set(everyone))
+      availInitialised.current = true
     }
   }
 
@@ -543,8 +544,8 @@ export default function MatchConsole() {
           <div className="stack-sm w-full sm:w-auto">
             <button
               onClick={()=>setIsRunning(v=>!v)}
-              disabled={controlDisabled}
-              className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${controlDisabled?'opacity-50':''} w-full sm:w-auto`}
+              disabled={isFinal || needsStarters}
+              className={`btn ${isRunning?'btn-primary bg-mk-crimson':'btn-emerald'} ${(isFinal || needsStarters)?'opacity-50':''} w-full sm:w-auto`}
             >
               {isRunning?'Pause':'Start'}
             </button>
@@ -591,11 +592,9 @@ export default function MatchConsole() {
                   return
                 }
                 setGuests(g => g.includes(guestToAdd) ? g : [...g, guestToAdd])
-                // ensure new guest is marked available
+                // ensure new guest is marked available (no autosync anymore)
                 setAvailableIds(prev => {
-                  const next = new Set(prev); next.add(guestToAdd)
-                  localStorage.setItem(keyForAvail(matchId), JSON.stringify(Array.from(next)))
-                  return next
+                  const next = new Set(prev); next.add(guestToAdd); return next
                 })
                 setGuestToAdd('')
                 setGuestMsg('Guest added ✓ (see Bench)')
@@ -701,9 +700,7 @@ export default function MatchConsole() {
                               setGuests(gs => gs.filter(id => id !== p.id))
                               // also drop from availability
                               setAvailableIds(prev => {
-                                const next = new Set(prev); next.delete(p.id)
-                                localStorage.setItem(keyForAvail(matchId), JSON.stringify(Array.from(next)))
-                                return next
+                                const next = new Set(prev); next.delete(p.id); return next
                               })
                             }}
                           >
