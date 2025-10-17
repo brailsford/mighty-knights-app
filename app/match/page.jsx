@@ -4,6 +4,9 @@ import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '../../lib/supabase-browser'
 import Link from 'next/link'
 
+// keep all IDs as strings in React state
+const sid = (v) => (v == null ? '' : String(v))
+
 const fmt = (ms) => {
   const s = Math.floor(ms / 1000)
   const mm = Math.floor(s / 60)
@@ -98,7 +101,7 @@ export default function MatchConsole() {
       .eq('team_id', teamId)
       .order('shirt_number', { nullsFirst: true })
     const normalized = (data||[]).map(p => ({
-      id: p.id,
+      id: sid(p.id),
       name: p.display_name?.trim() || p.initials || 'Player',
       shirt: p.shirt_number ?? null,
       guest: false
@@ -145,7 +148,7 @@ export default function MatchConsole() {
       .eq('team_id', other.id)
       .order('shirt_number', { nullsFirst: true })
     const normalized = (ps||[]).map(p => ({
-      id: p.id,
+      id: sid(p.id),
       name: p.display_name?.trim() || p.initials || 'Player',
       shirt: p.shirt_number ?? null,
       guest: true
@@ -159,17 +162,17 @@ export default function MatchConsole() {
     const loadGuests = async () => {
       if (!matchId) return
       const { data } = await sb.from('match_player').select('player_id').eq('match_id', matchId)
-      setGuests((data||[]).map(r => r.player_id))
+      setGuests((data||[]).map(r => sid(r.player_id)))
     }
     loadGuests()
   }, [matchId, sb])
 
   // merged list for this match (home + guests), with STABLE fallback for guests
   const playersAll = useMemo(() => {
-    const map = new Map(players.map(p => [p.id, { ...p, guest:false }]))
-    const otherMap = new Map(otherSquad.map(p => [p.id, p]))
+    const map = new Map(players.map(p => [sid(p.id), { ...p, guest:false }]))
+    const otherMap = new Map(otherSquad.map(p => [sid(p.id), p]))
     for (const gid of guests) {
-      const g = otherMap.get(gid) || { id: gid, name: 'Guest', shirt: null, guest: true }
+      const g = otherMap.get(sid(gid)) || { id: sid(gid), name: 'Guest', shirt: null, guest: true }
       map.set(g.id, { ...g, guest: true })
     }
     return Array.from(map.values()).sort(byRosterOrder)
@@ -180,20 +183,16 @@ export default function MatchConsole() {
     if (!matchId) return
     const raw = localStorage.getItem(keyForAvail(matchId))
     if (raw) {
-      try {
-        setAvailableIds(new Set(JSON.parse(raw)))
-      } catch {
-        setAvailableIds(new Set(playersAll.map(p=>p.id)))
-      }
+      try { setAvailableIds(new Set(JSON.parse(raw))) }
+      catch { setAvailableIds(new Set(playersAll.map(p=>sid(p.id)))) }
     } else {
-      setAvailableIds(new Set(playersAll.map(p=>p.id)))
+      setAvailableIds(new Set(playersAll.map(p=>sid(p.id))))
     }
     availInitialised.current = true
-  // only when matchId changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId])
 
-  // write-through persistence: whenever availability changes (by user or explicit code paths), store it
+  // write-through persistence when availability changes
   useEffect(() => {
     if (!matchId || !availInitialised.current) return
     localStorage.setItem(keyForAvail(matchId), JSON.stringify(Array.from(availableIds)))
@@ -215,18 +214,18 @@ export default function MatchConsole() {
         setMaxOnField(m.max_on_field || maxOnField)
         setOpponent(m.opponent || opponent)
       }
-      setIntervals((pis||[]).map((r) => ({ playerId: r.player_id, startMs: r.start_ms, endMs: r.end_ms ?? null })))
-      setEvents((evs||[]).map((e) => ({ type: e.kind === 'SUB' ? 'SUB_BATCH' : e.kind, atMs: e.at_ms, playerId: e.player_id ?? undefined, note: e.note ?? undefined })))
+      setIntervals((pis||[]).map((r) => ({ playerId: sid(r.player_id), startMs: r.start_ms, endMs: r.end_ms ?? null })))
+      setEvents((evs||[]).map((e) => ({ type: e.kind === 'SUB' ? 'SUB_BATCH' : e.kind, atMs: e.at_ms, playerId: e.player_id ? sid(e.player_id) : undefined, note: e.note ?? undefined })))
       setNeedsStarters((pis||[]).length === 0 && matchStatus !== 'final')
 
-      // If we have never initialised availability for this match, restore from last AVAIL event
+      // restore availability from last AVAIL event if never initialised
       if (!localStorage.getItem(keyForAvail(matchId))) {
         const lastAvail = [...(evs||[])].reverse().find((e)=>e.kind==='AVAIL' && e.note)
         if (lastAvail) {
           try {
-            const ids = new Set(JSON.parse(lastAvail.note))
+            const ids = new Set(JSON.parse(lastAvail.note).map(sid))
             setAvailableIds(ids)
-            localStorage.setItem(keyForAvail(matchId), lastAvail.note)
+            localStorage.setItem(keyForAvail(matchId), JSON.stringify(Array.from(ids)))
             availInitialised.current = true
           } catch {/* ignore */}
         }
@@ -240,7 +239,7 @@ export default function MatchConsole() {
       .subscribe()
     refresh()
     return () => { sb.removeChannel(channel) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId])
 
   const isFinal  = matchStatus === 'final'
@@ -249,16 +248,16 @@ export default function MatchConsole() {
   // Sets for fast checks
   const onFieldIdSet = useMemo(() => {
     const s = new Set()
-    for (const i of intervals) if (i.endMs == null) s.add(i.playerId)
+    for (const i of intervals) if (i.endMs == null) s.add(sid(i.playerId))
     return s
   }, [intervals])
 
   // derive on-field/bench from merged list, filtered by availability
-  const availableList = useMemo(() => playersAll.filter(p => availableIds.has(p.id)), [playersAll, availableIds])
-  const unavailableList = useMemo(() => playersAll.filter(p => !availableIds.has(p.id)), [playersAll, availableIds])
+  const availableList = useMemo(() => playersAll.filter(p => availableIds.has(sid(p.id))), [playersAll, availableIds])
+  const unavailableList = useMemo(() => playersAll.filter(p => !availableIds.has(sid(p.id))), [playersAll, availableIds])
 
-  const onField = useMemo(() => availableList.filter(p => onFieldIdSet.has(p.id)), [availableList, onFieldIdSet])
-  const bench   = useMemo(() => availableList.filter(p => !onFieldIdSet.has(p.id)), [availableList, onFieldIdSet])
+  const onField = useMemo(() => availableList.filter(p => onFieldIdSet.has(sid(p.id))), [availableList, onFieldIdSet])
+  const bench   = useMemo(() => availableList.filter(p => !onFieldIdSet.has(sid(p.id))), [availableList, onFieldIdSet])
 
   // minutes aggregation
   const minutesByPlayer = useMemo(() => {
@@ -266,21 +265,23 @@ export default function MatchConsole() {
     for (const i of intervals) {
       const end = i.endMs ?? matchMs
       const dur = Math.max(0, end - i.startMs)
-      map.set(i.playerId, (map.get(i.playerId) ?? 0) + dur)
+      const k = sid(i.playerId)
+      map.set(k, (map.get(k) ?? 0) + dur)
     }
     return map
   }, [intervals, matchMs])
 
   // starters
   const toggleStarter = (pid) =>
-    setStarterIds(ids => ids.includes(pid) ? ids.filter(x=>x!==pid) : [...ids, pid])
+    setStarterIds(ids => ids.includes(sid(pid)) ? ids.filter(x=>x!==sid(pid)) : [...ids, sid(pid)])
 
-  // availability toggle (and persist)
+  // availability toggle
   const toggleAvailable = (pid) => {
     if (!matchId) return
     setAvailableIds(prev => {
       const next = new Set(prev)
-      if (next.has(pid)) next.delete(pid); else next.add(pid)
+      const k = sid(pid)
+      if (next.has(k)) next.delete(k); else next.add(k)
       return next
     })
   }
@@ -288,13 +289,13 @@ export default function MatchConsole() {
   const confirmStarters = async () => {
     if (!matchId) return
     if (starterIds.length !== maxOnField) return
-    if (!starterIds.every(id => availableIds.has(id))) return
+    if (!starterIds.every(id => availableIds.has(sid(id)))) return
 
-    const rows = starterIds.map(id => ({ match_id: matchId, player_id: id, start_ms: 0 }))
+    const rows = starterIds.map(id => ({ match_id: matchId, player_id: sid(id), start_ms: 0 }))
     lastLocalWriteAt.current = performance.now()
     const { error } = await sb.from('playing_interval').insert(rows)
     if (!error) {
-      setIntervals(rows.map(r => ({ playerId: r.player_id, startMs: 0, endMs: null })))
+      setIntervals(rows.map(r => ({ playerId: sid(r.player_id), startMs: 0, endMs: null })))
       setNeedsStarters(false)
       await sb.from('match').update({ status: 'live', started_at: new Date().toISOString() }).eq('id', matchId)
       setMatchStatus('live')
@@ -316,26 +317,26 @@ export default function MatchConsole() {
 
   const fullGameMs = halfLengthMin * 2 * 60 * 1000
   const fullTarget = homeBalancingPool.length ? (fullGameMs * maxOnField) / homeBalancingPool.length : 0
-  const deficit = (pid) => fullTarget - (minutesByPlayer.get(pid) ?? 0)
+  const deficit = (pid) => fullTarget - (minutesByPlayer.get(sid(pid)) ?? 0)
 
   const suggestRotation = () => {
-    const sOff = [...onField].sort((a,b) => (minutesByPlayer.get(b.id) ?? 0) - (minutesByPlayer.get(a.id) ?? 0))
+    const sOff = [...onField].sort((a,b) => (minutesByPlayer.get(sid(b.id)) ?? 0) - (minutesByPlayer.get(sid(a.id)) ?? 0))
     const sOn  = [...bench].sort((a,b) => deficit(b.id) - deficit(a.id))
     const n = Math.min(sOff.length, sOn.length, maxOnField)
-    setSelectedOnIds(sOff.slice(0,n).map(p=>p.id))
-    setSelectedBenchIds(sOn.slice(0,n).map(p=>p.id))
+    setSelectedOnIds(sOff.slice(0,n).map(p=>sid(p.id)))
+    setSelectedBenchIds(sOn.slice(0,n).map(p=>sid(p.id)))
   }
 
   const confirmBatch = async () => {
     if (!matchId) return
     const n = Math.min(selectedBenchIds.length, selectedOnIds.length)
-    const pairs = Array.from({length:n}, (_,i)=>({ onId: selectedBenchIds[i], offId: selectedOnIds[i] }))
+    const pairs = Array.from({length:n}, (_,i)=>({ onId: sid(selectedBenchIds[i]), offId: sid(selectedOnIds[i]) }))
     setIntervals(cur => {
       let u = [...cur]
       for (const {offId,onId} of pairs) {
-        const idx = u.findIndex(it => it.playerId === offId && it.endMs == null)
+        const idx = u.findIndex(it => sid(it.playerId) === offId && it.endMs == null)
         if (idx >= 0) u[idx] = { ...u[idx], endMs: matchMs }
-        u.push({ playerId: onId, startMs: matchMs, endMs: null })
+        u.push({ playerId: sid(onId), startMs: matchMs, endMs: null })
       }
       return u
     })
@@ -353,19 +354,19 @@ export default function MatchConsole() {
   const removeNoReplace = async (pid) => {
     if (!matchId) return
     setIntervals(cur => {
-      const idx = cur.findIndex(it => it.playerId === pid && it.endMs == null)
+      const idx = cur.findIndex(it => sid(it.playerId) === sid(pid) && it.endMs == null)
       if (idx >= 0) { const u=[...cur]; u[idx]={...u[idx], endMs: matchMs}; return u }
       return cur
     })
     lastLocalWriteAt.current = performance.now()
-    await sb.from('playing_interval').update({ end_ms: Math.floor(matchMs) }).eq('match_id', matchId).eq('player_id', pid).is('end_ms', null)
+    await sb.from('playing_interval').update({ end_ms: Math.floor(matchMs) }).eq('match_id', matchId).eq('player_id', sid(pid)).is('end_ms', null)
   }
 
   // quick events
   const quickAction = async (kind, playerId) => {
     if (!matchId) return
     lastLocalWriteAt.current = performance.now()
-    await sb.from('event').insert({ match_id: matchId, player_id: playerId ?? null, at_ms: Math.floor(matchMs), kind, note: noteDraft || null })
+    await sb.from('event').insert({ match_id: matchId, player_id: playerId ? sid(playerId) : null, at_ms: Math.floor(matchMs), kind, note: noteDraft || null })
   }
 
   // reset / end / new / reopen
@@ -380,7 +381,7 @@ export default function MatchConsole() {
     setIsRunning(false); setMatchMs(0)
     // clear availability for this match
     localStorage.removeItem(keyForAvail(matchId))
-    setAvailableIds(new Set(playersAll.map(p=>p.id)))
+    setAvailableIds(new Set(playersAll.map(p=>sid(p.id))))
     availInitialised.current = true
   }
 
@@ -410,7 +411,7 @@ export default function MatchConsole() {
       setIntervals([]); setEvents([]); setStarterIds([])
       setIsRunning(false); setMatchMs(0); setNeedsStarters(true)
       // start with everyone available in the new match
-      const everyone = playersAll.map(p=>p.id)
+      const everyone = playersAll.map(p=>sid(p.id))
       localStorage.setItem(keyForAvail(data.id), JSON.stringify(everyone))
       setAvailableIds(new Set(everyone))
       availInitialised.current = true
@@ -429,7 +430,11 @@ export default function MatchConsole() {
   const settingsDisabled = isLocked
 
   const barFor = (pid) => {
-    const played = minutesByPlayer.get(pid) ?? 0
+    const played = minutesByPlayer.get(sid(pid)) ?? 0
+    const fullGameMs = halfLengthMin * 2 * 60 * 1000
+    const fullTarget = (availableList.filter(p=>!p.guest).length)
+      ? (fullGameMs * maxOnField) / (availableList.filter(p=>!p.guest).length)
+      : 0
     const pct = fullTarget > 0 ? Math.min(100, (played / fullTarget) * 100) : 0
     return (
       <div className="mt-1 bar">
@@ -485,7 +490,7 @@ export default function MatchConsole() {
             <div className="mb-2 text-sm font-semibold">Who’s here today?</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
               {playersAll.map(p => {
-                const here = availableIds.has(p.id)
+                const here = availableIds.has(sid(p.id))
                 return (
                   <button key={`avail-${p.id}`}
                     onClick={()=>toggleAvailable(p.id)}
@@ -505,7 +510,7 @@ export default function MatchConsole() {
             <div className="mt-6 mb-2 text-sm font-semibold">Select your starting {maxOnField}</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
               {availableList.map(p => {
-                const selected = starterIds.includes(p.id)
+                const selected = starterIds.includes(sid(p.id))
                 return (
                   <button key={`starter-${p.id}`} onClick={()=>toggleStarter(p.id)}
                     className={`rounded-2xl border px-3 py-2 text-left shadow-soft bg-white ${selected?'ring-2 ring-mk-gold':''}`}>
@@ -519,10 +524,10 @@ export default function MatchConsole() {
               <button onClick={confirmStarters}
                 disabled={
                   starterIds.length !== maxOnField ||
-                  !starterIds.every(id => availableIds.has(id))
+                  !starterIds.every(id => availableIds.has(sid(id)))
                 }
                 className={`btn ${
-                  (starterIds.length===maxOnField && starterIds.every(id=>availableIds.has(id)))
+                  (starterIds.length===maxOnField && starterIds.every(id=>availableIds.has(sid(id))))
                   ? 'btn-emerald'
                   : 'btn-ghost text-gray-400'
                 }`}
@@ -565,11 +570,11 @@ export default function MatchConsole() {
             <select
               className="field field-dark w-full sm:w-72"
               value={guestToAdd}
-              onChange={(e)=>setGuestToAdd(e.target.value)}
+              onChange={(e)=>setGuestToAdd(sid(e.target.value))}
             >
               <option value="">Select from other squad…</option>
               {otherSquad
-                .filter(p => !playersAll.some(x => x.id === p.id)) // hide already-added
+                .filter(p => !playersAll.some(x => sid(x.id) === sid(p.id))) // hide already-added
                 .map(p => (
                   <option key={p.id} value={p.id}>{p.name}{p.shirt ? ` #${p.shirt}` : ''}</option>
                 ))}
@@ -580,22 +585,17 @@ export default function MatchConsole() {
               onClick={async () => {
                 if (!guestToAdd) { setGuestMsg('Choose a player first.'); return }
                 if (!matchId) { setGuestMsg('No match yet — tap New match.'); return }
-
                 lastLocalWriteAt.current = performance.now()
                 const { error } = await sb
                   .from('match_player')
                   .upsert({ match_id: matchId, player_id: guestToAdd, is_guest: true }, { onConflict: 'match_id,player_id' })
-
                 if (error) {
                   console.error(error)
                   setGuestMsg(`Couldn’t add guest: ${error.message}`)
                   return
                 }
                 setGuests(g => g.includes(guestToAdd) ? g : [...g, guestToAdd])
-                // ensure new guest is marked available (no autosync anymore)
-                setAvailableIds(prev => {
-                  const next = new Set(prev); next.add(guestToAdd); return next
-                })
+                setAvailableIds(prev => { const next = new Set(prev); next.add(guestToAdd); return next })
                 setGuestToAdd('')
                 setGuestMsg('Guest added ✓ (see Bench)')
                 setTimeout(()=>setGuestMsg(''), 2000)
@@ -616,8 +616,12 @@ export default function MatchConsole() {
             <h2 className="mb-2 text-lg font-semibold">On Field ({onField.length}/{maxOnField})</h2>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
               {onField.map(p => {
-                const played = minutesByPlayer.get(p.id) ?? 0
-                const selected = selectedOnIds.includes(p.id)
+                const played = minutesByPlayer.get(sid(p.id)) ?? 0
+                const selected = selectedOnIds.includes(sid(p.id))
+                const fullGameMs = halfLengthMin * 2 * 60 * 1000
+                const fullTarget = (availableList.filter(x=>!x.guest).length)
+                  ? (fullGameMs * maxOnField) / (availableList.filter(x=>!x.guest).length)
+                  : 0
                 const delta = played - fullTarget
                 const chipClass = delta > 60000 ? 'chip-bad' : delta < -60000 ? 'chip-ok' : 'chip-muted'
                 return (
@@ -633,7 +637,7 @@ export default function MatchConsole() {
                           <div className={`mt-1 ${chipClass}`}>{(delta>=0?'+':'-') + fmt(Math.abs(delta))}</div>
                         </div>
                         <div className="flex gap-1">
-                          <button onClick={()=>setSelectedOnIds(ids=>ids.includes(p.id)?ids.filter(x=>x!==p.id):[...ids,p.id])}
+                          <button onClick={()=>setSelectedOnIds(ids=>ids.includes(sid(p.id))?ids.filter(x=>x!==sid(p.id)):[...ids,sid(p.id)])}
                             className="btn btn-ghost">{selected?'Selected':'Mark OFF'}</button>
                           <button onClick={()=>removeNoReplace(p.id)} className="btn btn-ghost">Remove</button>
                         </div>
@@ -654,8 +658,8 @@ export default function MatchConsole() {
             <h2 className="mb-2 text-lg font-semibold">Bench</h2>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {bench.map(p => {
-                const played = minutesByPlayer.get(p.id) ?? 0
-                const selected = selectedBenchIds.includes(p.id)
+                const played = minutesByPlayer.get(sid(p.id)) ?? 0
+                const selected = selectedBenchIds.includes(sid(p.id))
                 return (
                   <li key={p.id} className={`rounded-2xl border px-3 py-2 bg-[var(--surface)] shadow-soft ${selected?'ring-2 ring-mk-gold':''}`}>
                     <div className="flex items-center justify-between gap-2">
@@ -672,16 +676,16 @@ export default function MatchConsole() {
                             className="btn btn-emerald"
                             onClick={async () => {
                               if (!matchId) return
-                              setIntervals(u => [...u, { playerId: p.id, startMs: matchMs, endMs: null }])
+                              setIntervals(u => [...u, { playerId: sid(p.id), startMs: matchMs, endMs: null }])
                               lastLocalWriteAt.current = performance.now()
-                              await sb.from('playing_interval').insert({ match_id: matchId, player_id: p.id, start_ms: Math.floor(matchMs) })
+                              await sb.from('playing_interval').insert({ match_id: matchId, player_id: sid(p.id), start_ms: Math.floor(matchMs) })
                             }}
                           >
                             Send on now
                           </button>
                         ) : (
                           <button
-                            onClick={()=>setSelectedBenchIds(ids=>ids.includes(p.id)?ids.filter(x=>x!==p.id):[...ids,p.id])}
+                            onClick={()=>setSelectedBenchIds(ids=>ids.includes(sid(p.id))?ids.filter(x=>x!==sid(p.id)):[...ids,sid(p.id)])}
                             className="btn btn-ghost"
                           >
                             {selected ? 'Selected' : 'Mark ON'}
@@ -691,17 +695,14 @@ export default function MatchConsole() {
                         {p.guest && (
                           <button
                             className="btn btn-ghost"
-                            disabled={onFieldIdSet.has(p.id)}
-                            title={onFieldIdSet.has(p.id) ? 'Sub off before removing guest' : 'Remove guest'}
+                            disabled={onFieldIdSet.has(sid(p.id))}
+                            title={onFieldIdSet.has(sid(p.id)) ? 'Sub off before removing guest' : 'Remove guest'}
                             onClick={async () => {
                               if (!matchId) return
                               lastLocalWriteAt.current = performance.now()
-                              await sb.from('match_player').delete().eq('match_id', matchId).eq('player_id', p.id)
-                              setGuests(gs => gs.filter(id => id !== p.id))
-                              // also drop from availability
-                              setAvailableIds(prev => {
-                                const next = new Set(prev); next.delete(p.id); return next
-                              })
+                              await sb.from('match_player').delete().eq('match_id', matchId).eq('player_id', sid(p.id))
+                              setGuests(gs => gs.filter(id => id !== sid(p.id)))
+                              setAvailableIds(prev => { const next = new Set(prev); next.delete(sid(p.id)); return next })
                             }}
                           >
                             Remove guest
