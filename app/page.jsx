@@ -13,8 +13,9 @@ export default function Home() {
 
       <section className="rounded-3xl border p-4 shadow">
         <h2 className="text-lg font-semibold mb-2">Welcome</h2>
-        <p className="text-sm mb-4">Use the Match Console to log minutes and rolling subs. This is an MVP; Supabase wiring is ready when you are.</p>
+        <p className="text-sm mb-4">Use the Match Console to log minutes and rolling subs.</p>
         <Link className="inline-block rounded-xl bg-blue-600 text-white px-4 py-2" href="/match">Open Match Console</Link>
+		<Link href="/history" className="btn btn-outline">Match History</Link>
       </section>
     </main>
   )
