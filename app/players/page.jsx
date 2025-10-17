@@ -107,7 +107,7 @@ export default function PlayersPage() {
 			<label className="text-sm flex items-center gap-2 w-[calc(50%-0.25rem)] sm:w-auto">
 			  Squad size
 			  <select value={count} onChange={e => ensureCount(parseInt(e.target.value))} className="field field-dark w-full sm:w-[92px]">
-				{[10,12,14,16,18,20].map(n => <option key={n} value={n}>{n}</option>)}
+				{[10,11,12,13,14,15,16,17,18,19,20].map(n => <option key={n} value={n}>{n}</option>)}
 			  </select>
 			</label>
 
