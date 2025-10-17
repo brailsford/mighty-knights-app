@@ -161,6 +161,37 @@ export default function PlayersPage() {
                     />
                   </label>
                 </div>
+				{/* Move to squad (permanent transfer) */}
+				<div className="mt-2">
+				  <label className="block text-xs text-gray-500 mb-1">Move to squad</label>
+				  <select
+					className="field field-dark"
+					value={r.team_id ?? teamId} // show the player's current squad
+					onChange={async (e) => {
+					  const newTeamId = e.target.value
+					  if (!r.id) {
+						alert('Save this player first, then you can move them.')
+						return
+					  }
+					  if (newTeamId === (r.team_id ?? teamId)) return
+					  const { error } = await sb.from('player').update({ team_id: newTeamId }).eq('id', r.id)
+					  if (!error) {
+						// Optimistically update local row and, if moved away from current squad, remove from view
+						setRows(rows => rows.filter(x => x.id !== r.id))
+					  } else {
+						console.error(error)
+					  }
+					}}
+					disabled={!r.id} // disable for unsaved placeholder rows
+				  >
+					{teams.map(t => (
+					  <option key={t.id} value={t.id}>{t.name} — {t.squad.toUpperCase()}</option>
+					))}
+				  </select>
+				  <p className="mt-1 text-[11px] text-gray-500">
+					Past games stay with the original squad; this affects future games.
+				  </p>
+				</div>				
               </div>
             ))}
           </div>
